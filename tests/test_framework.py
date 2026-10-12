@@ -1512,5 +1512,95 @@ class FindingGateIntegrationTests(unittest.TestCase):
             self.assertEqual(result.details["prerequisites"][0]["effective_status"], "UNVERIFIED")
 
 
+class IndexPortabilityTests(unittest.TestCase):
+    """The committed index must carry no absolute local paths.
+
+    Regression guards. Absolute paths were stripped from skill summaries and
+    diagnostics but survived in two places that only appear intermittently:
+    collision records (which surface only when two roots offer the same name),
+    and anything added to the payload later without going through the
+    relativiser. A leak here is both a stale reference on another host and a
+    disclosure of the authoring machine's layout.
+    """
+
+    def test_relative_inside_framework(self) -> None:
+        import build_index as B
+
+        result = B._relative(str(B.FRAMEWORK_ROOT / "tools" / "cvss.py"))
+        self.assertEqual(result, "tools/cvss.py")
+
+    def test_relative_for_home_path(self) -> None:
+        import build_index as B
+
+        result = B._relative(str(Path.home() / ".dsh" / "skills" / "x" / "SKILL.md"))
+        self.assertTrue(result.startswith("~/"), result)
+        self.assertNotIn(str(Path.home()), result)
+
+    def test_relative_leaves_unrelated_path_alone(self) -> None:
+        """A path outside the framework and outside home has no relative form.
+
+        The contract is pass-through: the caller's string is returned unchanged
+        rather than rewritten into a resolved form, so a path this function
+        cannot express relative to the repository is never silently mangled.
+        """
+        import build_index as B
+
+        outside = "C:/Windows/System32/drivers/etc/hosts" if sys.platform == "win32" else "/etc/hosts"
+        # Guard the fixture itself: if this path resolved inside the framework
+        # or home, the assertion below would be vacuous.
+        resolved = Path(outside).resolve()
+        self.assertFalse(str(resolved).startswith(str(B.FRAMEWORK_ROOT)))
+        self.assertNotIn(str(Path.home()), str(resolved))
+        self.assertEqual(B._relative(outside), outside)
+
+    def test_collision_paths_are_relativised(self) -> None:
+        import build_index as B
+
+        entry = {
+            "name": "dup",
+            "winner": {"name": "dup", "path": str(B.FRAMEWORK_ROOT / "skills" / "dup" / "SKILL.md")},
+            "losers": [{"name": "dup", "path": str(Path.home() / ".dsh" / "skills" / "dup" / "SKILL.md")}],
+        }
+        out = B._relativise_collision(entry)
+        self.assertEqual(out["winner"]["path"], "skills/dup/SKILL.md")
+        self.assertTrue(out["losers"][0]["path"].startswith("~/"))
+        self.assertNotIn(str(B.FRAMEWORK_ROOT), str(out))
+
+    def test_committed_index_has_no_absolute_paths(self) -> None:
+        """The strongest form: read the real artifact and check every path.
+
+        The local username is derived rather than hardcoded, so this works on
+        any host — and so the test file does not itself put a username into the
+        repository, which would also make any future leak scan match this file.
+        """
+        import json
+
+        index = Path(__file__).resolve().parent.parent / "index.json"
+        if not index.is_file():
+            self.skipTest("index.json not built")
+        data = json.loads(index.read_text(encoding="utf-8"))
+        local_user = Path.home().name
+
+        def walk(node, trail="$"):
+            if isinstance(node, dict):
+                for key, value in node.items():
+                    if key == "path" and isinstance(value, str):
+                        self.assertFalse(
+                            value.startswith(("C:", "c:", "/", "\\\\")),
+                            f"absolute path at {trail}.path: {value}",
+                        )
+                        if local_user:
+                            self.assertNotIn(
+                                local_user, value, f"local username at {trail}.path: {value}"
+                            )
+                    else:
+                        walk(value, f"{trail}.{key}")
+            elif isinstance(node, list):
+                for i, item in enumerate(node):
+                    walk(item, f"{trail}[{i}]")
+
+        walk(data)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -2,7 +2,7 @@
 name: sqli-surface-triage
 description: Rank gathered injection-surface evidence into a small ordered set of testable hypotheses, classify each input as value-role or structure-role, and record the lead in a persistent ledger. Use when you have an evidence bundle and need to decide what to test first, when a sort/filter/column parameter has been found and its role in query construction is unclear, when several candidate surfaces compete for limited testing time, or when a lead must be parked rather than killed because the evidence is not yet conclusive.
 whenToUse: After bounty-recon-collect, before any probe. Also when re-prioritising mid-hunt.
-license: Apache-2.0
+license: none granted (private repository)
 metadata:
   framework: bug-bounty-agent-framework
   implements: data versus structure classification, hypothesis ranking, kill guard

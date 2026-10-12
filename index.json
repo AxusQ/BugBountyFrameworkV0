@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "generated_at": "2026-10-12T15:07:14+00:00",
+  "generated_at": "2026-10-12T16:35:43+00:00",
   "framework": "bug-bounty-agent-framework",
   "total_skills": 841,
-  "total_candidates": 841,
+  "total_candidates": 842,
   "sources": [
     {
       "label": "framework",
@@ -13,8 +13,8 @@
       "license": "none granted (private repository)",
       "origin": "this repository",
       "role": "the framework's own portable skills",
-      "skills_admitted": 5,
-      "winning": 5,
+      "skills_admitted": 6,
+      "winning": 6,
       "shadowed": []
     },
     {
@@ -62,11 +62,43 @@
       "origin": "local harness skill root",
       "role": "installed user skills, including sqli-bug-bounty",
       "skills_admitted": 2,
-      "winning": 2,
-      "shadowed": []
+      "winning": 1,
+      "shadowed": [
+        "sqli-bug-bounty"
+      ]
     }
   ],
-  "collisions": [],
+  "collisions": [
+    {
+      "name": "sqli-bug-bounty",
+      "winner": {
+        "name": "sqli-bug-bounty",
+        "description": "Method for finding and reporting SQL injection (SQLi) in modern bug-bounty targets during authorized assessments - the full hunting pipeline from recon and stack fingerprinting, through injection-surface inventory, data-vs-structure classification, oracle-based detection, and safe PoC construction, to impact demonstration and reporting. Use whenever hunting SQLi in web apps/APIs, when testing ORMs, GraphQL resolvers, filter DSLs, admin tools, backup products, or AI/database gateways, or when a finding must show exactly which query-construction boundary was crossed.",
+        "path": "skills/sqli-bug-bounty/SKILL.md",
+        "root": "framework",
+        "rank": 50,
+        "source": "bundle",
+        "model_invocable": true,
+        "user_invocable": true,
+        "license": "none granted (private repository)"
+      },
+      "losers": [
+        {
+          "name": "sqli-bug-bounty",
+          "description": "Method for finding and reporting SQL injection (SQLi) in modern bug-bounty targets during authorized assessments - the full hunting pipeline from recon and stack fingerprinting, through injection-surface inventory, data-vs-structure classification, oracle-based detection, and safe PoC construction, to impact demonstration and reporting. Use whenever hunting SQLi in web apps/APIs, when testing ORMs, GraphQL resolvers, filter DSLs, admin tools, backup products, or AI/database gateways, or when a finding must show exactly which query-construction boundary was crossed.",
+          "path": "~/.dsh/skills/sqli-bug-bounty/SKILL.md",
+          "root": "user",
+          "rank": 400,
+          "source": "bundle",
+          "model_invocable": true,
+          "user_invocable": true
+        }
+      ],
+      "shadowed_roots": [
+        "user"
+      ]
+    }
+  ],
   "rejected": [
     {
       "severity": "error",
@@ -7099,7 +7131,7 @@
         "tools": "framework/tools/pipeline.py",
         "negative-trigger": "Do not use this skill for the vulnerability method itself; use `sqli-bug-bounty`. Do not use it on a target without a recorded authorization basis."
       },
-      "license": "Apache-2.0"
+      "license": "none granted (private repository)"
     },
     {
       "name": "bounty-recon-collect",
@@ -7117,7 +7149,7 @@
         "tools": "framework/tools/collectors.py, framework/tools/gates.py",
         "negative-trigger": "Do not use this skill for the SQL injection method itself; use `sqli-bug-bounty` for surface classification, oracle choice, and impact demonstration."
       },
-      "license": "Apache-2.0"
+      "license": "none granted (private repository)"
     },
     {
       "name": "bug-bounty",
@@ -16179,17 +16211,18 @@
         "tools": "framework/tools/report.py, framework/tools/cvss.py, framework/tools/gates.py",
         "negative-trigger": "Do not use this skill to find the vulnerability or to probe it; use `sqli-surface-triage` and `sqli-oracle-probe`."
       },
-      "license": "Apache-2.0"
+      "license": "none granted (private repository)"
     },
     {
       "name": "sqli-bug-bounty",
       "description": "Method for finding and reporting SQL injection (SQLi) in modern bug-bounty targets during authorized assessments - the full hunting pipeline from recon and stack fingerprinting, through injection-surface inventory, data-vs-structure classification, oracle-based detection, and safe PoC construction, to impact demonstration and reporting. Use whenever hunting SQLi in web apps/APIs, when testing ORMs, GraphQL resolvers, filter DSLs, admin tools, backup products, or AI/database gateways, or when a finding must show exactly which query-construction boundary was crossed.",
-      "path": "~/.dsh/skills/sqli-bug-bounty/SKILL.md",
-      "root": "user",
-      "rank": 400,
+      "path": "skills/sqli-bug-bounty/SKILL.md",
+      "root": "framework",
+      "rank": 50,
       "source": "bundle",
       "model_invocable": true,
-      "user_invocable": true
+      "user_invocable": true,
+      "license": "none granted (private repository)"
     },
     {
       "name": "sqli-oracle-probe",
@@ -16207,7 +16240,7 @@
         "tools": "framework/tools/evidence.py, framework/tools/pipeline.py",
         "negative-trigger": "Do not use this skill to choose payload grammar or fingerprinted DBMS syntax; use `sqli-bug-bounty` and its detection reference. Do not use it to demonstrate impact; use `sqli-boundary-report`."
       },
-      "license": "Apache-2.0"
+      "license": "none granted (private repository)"
     },
     {
       "name": "sqli-surface-triage",
@@ -16225,7 +16258,7 @@
         "tools": "framework/tools/leads.py, framework/tools/pipeline.py",
         "negative-trigger": "Do not use this skill to send probes or payloads; use `sqli-oracle-probe`. Do not use it for the report; use `sqli-boundary-report`."
       },
-      "license": "Apache-2.0"
+      "license": "none granted (private repository)"
     },
     {
       "name": "testing-android-intents-for-vulnerabilities",

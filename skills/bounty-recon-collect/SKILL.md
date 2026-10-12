@@ -2,7 +2,7 @@
 name: bounty-recon-collect
 description: Deterministic, model-free gathering of a target's attack surface from saved artefacts, producing a bounded ranked evidence bundle and an asset-boundary report. Use when starting a hunt against an in-scope target, when a JavaScript bundle or OpenAPI document needs to be mined for API paths and query-parameter names, when you need to know which discovered hosts are out of scope before contacting anything, or when a fresh asset or a revived host should be prioritised over a re-scan.
 whenToUse: Run first, before any hypothesis. Also run on a schedule to turn change signals into leads.
-license: Apache-2.0
+license: none granted (private repository)
 metadata:
   framework: bug-bounty-agent-framework
   implements: code gathers, agent judges

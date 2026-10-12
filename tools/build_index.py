@@ -64,6 +64,28 @@ def _relativise_diagnostic(entry: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _relativise_collision(entry: dict[str, Any]) -> dict[str, Any]:
+    """Strip absolute paths from a collision record.
+
+    Collisions were the last place absolute paths survived relativisation, and
+    they only surface when the same skill name is offered by two roots — so the
+    leak appeared the moment a vendored skill shadowed an installed copy, not
+    before. Every summary inside the record needs the same treatment as a
+    top-level skill entry.
+    """
+    out = dict(entry)
+    for key in ("winner", "losers"):
+        value = out.get(key)
+        if isinstance(value, dict):
+            out[key] = {**value, "path": _relative(str(value["path"]))} if value.get("path") else dict(value)
+        elif isinstance(value, list):
+            out[key] = [
+                {**item, "path": _relative(str(item["path"]))} if item.get("path") else dict(item)
+                for item in value
+            ]
+    return out
+
+
 def _relative(path_str: str) -> str:
     """Express a path relative to the framework root when it lies inside it.
 
@@ -148,7 +170,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "total_skills": len(catalog),
         "total_candidates": len(result.skills),
         "sources": per_source,
-        "collisions": [c.as_dict() for c in collisions],
+        "collisions": [_relativise_collision(c.as_dict()) for c in collisions],
         "rejected": [_relativise_diagnostic(d.as_dict()) for d in result.errors],
         "diagnostics": [_relativise_diagnostic(d.as_dict()) for d in result.diagnostics],
         "skills": summaries,

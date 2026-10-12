@@ -60,6 +60,31 @@ impose copyleft on this repository. Cloning them locally for reference is fine,
 which is what `bootstrap.py` does — at pinned commits, so the corpus is
 reproducible rather than a fork that rots.
 
+## Skills
+
+Six portable skills ship in the repository, so a fresh clone is self-contained —
+including the SQLi method the others defer to:
+
+| Skill | Role |
+|---|---|
+| `sqli-bug-bounty` | **the method**: recon, surface inventory, value-vs-structure, oracle choice, boundary naming, reporting. Carries six references (recon, surface-catalog, blindspots, detection, case-studies, reporting) |
+| `bounty-hunt-run` | pipeline driver across the seven phases |
+| `bounty-recon-collect` | deterministic gathering, model-free |
+| `sqli-surface-triage` | ranks evidence into testable hypotheses; records leads |
+| `sqli-oracle-probe` | paired test/control experiments; judges the result |
+| `sqli-boundary-report` | prerequisite ledger, counterevidence, CVSS, platform emission |
+
+The three SQLi pipeline skills deliberately do **not** restate the method. Each
+carries an explicit negative trigger — *"for the SQL injection method itself, use
+`sqli-bug-bounty`"* — so the two do not compete for the same request. That is why
+`sqli-bug-bounty` is vendored here rather than left as an external expectation:
+without it those triggers point at nothing.
+
+Skills are indexed from the working tree at the highest rank. If you also install
+a copy into `<dshHome>/skills`, the repository copy wins the name collision and
+the registry reports the shadowed one rather than failing — so an installed copy
+cannot silently override what this repository says.
+
 ## The tools
 
 | Tool | Does |

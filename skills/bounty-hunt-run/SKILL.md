@@ -2,7 +2,7 @@
 name: bounty-hunt-run
 description: Drive the end-to-end bug bounty pipeline for one in-scope target, moving through authorise, gather, hypothesise, probe, gate, deduplicate, and report while enforcing the executable gates between phases and persisting every artifact to a resumable run directory. Use when starting a hunt on a new target, when resuming a hunt after a break, when a phase appears blocked and you need to know why, or when you need a hash-chained record of what was done and observed.
 whenToUse: As the entry point for any authorised hunt. Run it before the phase-specific skills.
-license: Apache-2.0
+license: none granted (private repository)
 metadata:
   framework: bug-bounty-agent-framework
   orchestrates: bounty-recon-collect, sqli-surface-triage, sqli-oracle-probe, sqli-boundary-report

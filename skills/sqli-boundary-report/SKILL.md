@@ -2,7 +2,7 @@
 name: sqli-boundary-report
 description: Name the exact query-construction boundary a confirmed injection crossed, score it with reproducible CVSS 3.1 base metrics, emit a platform-ready report for HackerOne, Bugcrowd, Intigriti, or Immunefi, and self-triage the draft before submission. Use when a probe has cleared the evidence bar, when a draft report needs a verdict before it is submitted, when a severity claim must be reconciled with its CVSS vector, or when a triager has asked which ORM API or identifier position was actually crossed.
 whenToUse: After a lead has cleared the evidence gate. Also to re-triage any draft, including one written by hand.
-license: Apache-2.0
+license: none granted (private repository)
 metadata:
   framework: bug-bounty-agent-framework
   implements: boundary naming, CVSS 3.1 base scoring, platform emitters, self-triage

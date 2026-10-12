@@ -2,7 +2,7 @@
 name: sqli-oracle-probe
 description: Probe a classified lead with a paired test-and-control experiment, select the weakest sufficient oracle, and judge the result into SIGNAL, REFUTED, UNKNOWN, or ERROR with repeats rather than a single sample. Use when testing whether an input influences SQL structure, when a timing or boolean reading looks anomalous but might be caching or load balancing, when a WAF appears to block a payload, or when a negative result needs to be trustworthy enough to abandon a lead.
 whenToUse: After sqli-surface-triage has ranked a lead. Also whenever a previous result is ambiguous.
-license: Apache-2.0
+license: none granted (private repository)
 metadata:
   framework: bug-bounty-agent-framework
   implements: oracle selection, control baselines, unknown-beats-refuted

@@ -1,7 +1,12 @@
 # Reference repositories fetched by bootstrap.py. Never committed: they are
 # other people's code, one of them carries no license grant at all, and pinning
 # beats vendoring.
-references/
+#
+# ANCHORED to the repository root deliberately. An unanchored `references/`
+# would match ANY directory of that name at any depth — including
+# `skills/*/references/`, which is where skill resource bundles live. That
+# silently excluded six reference files from a commit once already.
+/references/
 
 # Run artifacts. These hold real target data, real evidence, and possibly
 # unredacted snapshots taken before redaction was wired in — never publish them.

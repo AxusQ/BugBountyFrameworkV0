@@ -1,0 +1,22 @@
+# Reference repositories fetched by bootstrap.py. Never committed: they are
+# other people's code, one of them carries no license grant at all, and pinning
+# beats vendoring.
+references/
+
+# Run artifacts. These hold real target data, real evidence, and possibly
+# unredacted snapshots taken before redaction was wired in — never publish them.
+runs/
+*.jsonl
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+
+# Local overrides
+sources.local.yaml
+*.local.yaml

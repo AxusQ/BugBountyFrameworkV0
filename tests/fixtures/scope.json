@@ -1,0 +1,13 @@
+{
+  "program": "Example Corp Bug Bounty",
+  "policy_url": "https://example.com/security/policy",
+  "policy_seen": "2026-10-12",
+  "in_scope": ["*.example.com"],
+  "out_of_scope": ["dev.example.com", "*.internal.example.com"],
+  "excluded_classes": ["self-xss", "clickjacking"],
+  "automated_scanning_allowed": false,
+  "max_severity_per_class": {
+    "sql injection": "critical"
+  },
+  "data_handling": "Use your own test account data only. Do not retain third-party data beyond proving access; delete within 30 days."
+}

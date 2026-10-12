@@ -1,0 +1,11 @@
+# Runtime dependencies for the bug bounty agent framework.
+#
+# Deliberately minimal: one third-party package, everything else is stdlib.
+#   PyYAML is required for frontmatter parsing and MUST NOT be replaced with a
+#   regex parser. The source corpus documents that three hand-rolled regex
+#   parsers truncated 604 of 817 skill descriptions to their first line, because
+#   skill descriptions legally span multiple lines.
+#
+#   git is required only by bootstrap.py (fetching pinned reference repos).
+
+PyYAML>=6.0

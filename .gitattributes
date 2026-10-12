@@ -1,0 +1,24 @@
+# Normalize line endings to LF in the repository regardless of the host that
+# commits. This matters because the framework is authored on Windows but
+# installed on another host, and the skill format is parsed by line.
+* text=auto eol=lf
+
+# Windows-native scripts, if any are added later, must keep CRLF to run.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary fixtures must never be line-ending converted.
+*.png binary
+*.jpg binary
+*.gif binary
+*.zip binary
+*.gz binary
+*.pdf binary
+
+# Generated and language files where diffs should not be suppressed.
+index.json text eol=lf linguist-generated=true
+*.py text eol=lf
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

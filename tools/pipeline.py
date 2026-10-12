@@ -402,7 +402,86 @@ class Run:
         )
 
     def emit(self, finding: R.Finding, platform: str = "hackerone") -> PhaseResult:
-        """Render a report, after running the self-triage gate over the draft."""
+        """Render a report, but only for a finding that cleared the earlier gates.
+
+        This phase produces the artifact a triager actually reads, which makes it
+        the one place where skipping an earlier gate is invisible to the reader.
+        It previously rendered from any run — including one where nothing had
+        cleared the evidence bar and no duplicate check had been recorded — which
+        contradicted the framework's central claim that a finding cannot advance
+        without a named boundary.
+
+        Two prerequisites are enforced, using the same ``blocked_by`` pattern as
+        every other phase:
+
+        * ``gate.json`` must exist with at least one observation that cleared the
+          evidence bar. If a prerequisite ledger was evaluated its verdict must be
+          ``PROVEN``; a ledger that was never evaluated is *warned* about rather
+          than failed, because not every caller uses one.
+        * ``dedup.json`` must exist and must not have failed, which means a prior
+          disclosure check was recorded rather than merely intended.
+
+        There is deliberately no override flag — a strict gate with a bypass is
+        how gates get bypassed. A caller who genuinely needs an ungated render can
+        call :func:`report.render` directly, which is an explicit and visible act
+        rather than a switch that conceals one.
+        """
+        blockers: list[str] = []
+        warnings: list[str] = []
+
+        gate_payload = self._read_json("gate")
+        if not gate_payload:
+            blockers.append(
+                "no gate results; run gate first — a report cannot be emitted from a run where "
+                "nothing was judged (missing artifact: gate.json)"
+            )
+        else:
+            passed = int(gate_payload.get("passed", 0))
+            if passed < 1:
+                blockers.append(
+                    f"no observation cleared the evidence bar ({passed} of "
+                    f"{gate_payload.get('observations', 0)} passed); overall verdict was "
+                    f"{gate_payload.get('overall_verdict', 'unknown')}"
+                )
+            prereq = gate_payload.get("prerequisite_verdict")
+            if prereq is None:
+                warnings.append(
+                    "no prerequisite ledger was evaluated; attacker reachability is unestablished, "
+                    "so this report has not been shown to be reachable by an attacker"
+                )
+            elif prereq != "PROVEN":
+                blockers.append(
+                    f"prerequisite verdict is {prereq}, not PROVEN; the attacker path this finding "
+                    "depends on has not been established"
+                )
+
+        dedup_payload = self._read_json("deduplicate")
+        if not dedup_payload:
+            blockers.append(
+                "no duplication check recorded (missing artifact: dedup.json); search the program's "
+                "known and duplicate lists, then record what you searched"
+            )
+        else:
+            failures = [f for f in dedup_payload.get("findings", []) if not f.get("passed")]
+            if failures:
+                first = (failures[0].get("reasons") or ["unspecified"])[0]
+                blockers.append(
+                    f"duplication check did not pass for {len(failures)} finding key(s): {first}"
+                )
+
+        if blockers:
+            return PhaseResult(
+                "report", False,
+                "report emission refused: the finding has not cleared the required gates",
+                details={
+                    "blockers": blockers,
+                    "warnings": warnings,
+                    "gate_present": bool(gate_payload),
+                    "dedup_present": bool(dedup_payload),
+                },
+                blocked_by=blockers,
+            )
+
         problems = R.validate(finding, platform)
         text = R.render(finding, platform, strict=False)
 
@@ -419,14 +498,16 @@ class Run:
         slug = "".join(ch if ch.isalnum() else "-" for ch in finding.title.lower())[:60].strip("-")
         out = out_dir / f"{platform}-{slug}.md"
         out.write_text(text, encoding="utf-8")
-        self.chain.append("report", {"platform": platform, "verdict": triage.verdict, "path": str(out)})
+        # Record the file name only: provenance is committed-adjacent and must not
+        # carry absolute local paths.
+        self.chain.append("report", {"platform": platform, "verdict": triage.verdict, "path": out.name})
 
         ok = triage.verdict != "DO NOT SUBMIT"
         return PhaseResult(
             "report", ok,
             f"{platform} report written to {out.name}; triage verdict {triage.verdict}",
             details={"path": str(out), "verdict": triage.verdict, "validation": problems,
-                     "reasons": triage.result.reasons, "warnings": triage.result.warnings},
+                     "reasons": triage.result.reasons, "warnings": triage.result.warnings + warnings},
             blocked_by=triage.result.reasons,
         )
 

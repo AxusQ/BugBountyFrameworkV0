@@ -1602,5 +1602,197 @@ class IndexPortabilityTests(unittest.TestCase):
         walk(data)
 
 
+class ReportEmissionGateTests(unittest.TestCase):
+    """Report emission must be chained to the gates that precede it.
+
+    Regression guards for a real defect: ``emit()`` rendered a platform report
+    from any run, including one with no ``gate.json`` and no ``dedup.json``. The
+    phase producing the artifact a triager actually reads was the one phase not
+    chained to the evidence bar, which undercut the framework's central claim
+    that a finding cannot advance without a named boundary.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        import pipeline as P
+
+        self.P = P
+        self.run = P.Run(self.root / "runs", "app.example.com")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    # -- fixtures ----------------------------------------------------------- #
+
+    def _finding(self):
+        import report as R
+        from evidence import InputRole
+
+        return R.Finding(
+            title="SQL injection via the report sort parameter",
+            target="app.example.com",
+            endpoint="GET /api/v1/reports?sort=created_at",
+            parameter="sort",
+            role=InputRole.STRUCTURE,
+            bug_class="SQL injection",
+            boundary="ORDER BY identifier position in the sort parameter; the value is concatenated, not allowlisted",
+            prerequisites="Authenticated low-privilege account.",
+            steps=["Authenticate as your own user.", "Issue the recorded request.", "Compare with the control."],
+            payload="GET /api/v1/reports?sort=(SELECT 1) HTTP/1.1",
+            control="GET /api/v1/reports?sort=created_at HTTP/1.1",
+            expected="Identical ordering behaviour.",
+            observed="Test arm returns an ORDER BY error; control returns 200.",
+            impact="Demonstrated control over the generated ORDER BY clause.",
+            remediation="Map the parameter to an allowlist of column names.",
+            cvss_vector="CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N",
+            references=["https://example.com/security/policy"],
+        )
+
+    def _authorise_gather_record(self, *, with_prereq: bool = False, prereq_reachable: bool = True):
+        import prerequisites as Q
+
+        self.run.authorise(G_Authorization())
+        self.run.gather(js_texts=[("b.js", "fetch('/api/v1/reports?sort=x')")])
+        self.run.hypothesise()
+        self.run.record(ev_observation())
+
+        if not with_prereq:
+            return None, None
+
+        ledger = Q.PrerequisiteLedger([
+            Q.Prerequisite(
+                "victim object identifier", "low-privilege account",
+                "enumerate via the shared report index",
+                status=Q.PrereqStatus.REACHABLE if prereq_reachable else Q.PrereqStatus.UNVERIFIED,
+                evidence_path="evidence/id.txt" if prereq_reachable else None,
+            )
+        ])
+        counter = Q.CounterEvidence(
+            benign_explanation="The index may apply caller scoping by design at the query layer.",
+            control_checked="Compared against a second account's own object.",
+            control_result="Second account saw only its own rows.",
+            would_change_severity="An elevated role requirement would reduce this to Low.",
+        )
+        return ledger, counter
+
+    def _pass_dedup(self):
+        import gates as G
+
+        return self.run.deduplicate(
+            [G.FindingKey("app.example.com", "GET /api/v1/reports?sort", "SQL injection")],
+            prior_report_check="searched program hacktivity and public disclosures; nothing found",
+            known_issue_list_checked=True,
+        )
+
+    # -- the defect --------------------------------------------------------- #
+
+    def test_emission_refused_with_no_gate_and_no_dedup(self) -> None:
+        """The exact previously-reproducible failure."""
+        result = self.run.emit(self._finding(), "hackerone")
+        self.assertFalse(result.ok)
+        blockers = result.details["blockers"]
+        self.assertTrue(any("no gate results" in b for b in blockers), blockers)
+        self.assertTrue(any("no duplication check" in b for b in blockers), blockers)
+
+    def test_no_report_file_written_when_refused(self) -> None:
+        self.run.emit(self._finding(), "hackerone")
+        reports_dir = self.run.path("report")
+        written = list(reports_dir.glob("*.md")) if reports_dir.is_dir() else []
+        self.assertEqual(written, [], "a refused emission must not leave a report behind")
+
+    def test_emission_refused_when_gate_present_but_nothing_passed(self) -> None:
+        self._authorise_gather_record()
+        self.run.gate()  # no boundary named, so every observation is blocked
+        result = self.run.emit(self._finding(), "hackerone")
+        self.assertFalse(result.ok)
+        self.assertTrue(any("cleared the evidence bar" in b for b in result.details["blockers"]))
+
+    def test_emission_refused_when_dedup_missing(self) -> None:
+        self._authorise_gather_record()
+        self.run.gate(boundary="ORDER BY identifier position")
+        result = self.run.emit(self._finding(), "hackerone")
+        self.assertFalse(result.ok)
+        self.assertTrue(any("no duplication check" in b for b in result.details["blockers"]))
+
+    def test_emission_refused_when_dedup_failed(self) -> None:
+        import gates as G
+
+        self._authorise_gather_record()
+        self.run.gate(boundary="ORDER BY identifier position")
+        self.run.deduplicate([G.FindingKey("app.example.com", "GET /api/v1/reports", "SQL injection")])
+        result = self.run.emit(self._finding(), "hackerone")
+        self.assertFalse(result.ok)
+        self.assertTrue(any("duplication check did not pass" in b for b in result.details["blockers"]))
+
+    def test_emission_refused_when_prerequisites_not_proven(self) -> None:
+        ledger, counter = self._authorise_gather_record(with_prereq=True, prereq_reachable=False)
+        self.run.gate(boundary="ORDER BY identifier position", prerequisites=ledger, counterevidence=counter)
+        self._pass_dedup()
+        result = self.run.emit(self._finding(), "hackerone")
+        self.assertFalse(result.ok)
+        self.assertTrue(any("prerequisite verdict" in b for b in result.details["blockers"]))
+
+    # -- happy path and the warning ----------------------------------------- #
+
+    def test_emission_succeeds_when_all_gates_pass(self) -> None:
+        ledger, counter = self._authorise_gather_record(with_prereq=True)
+        self.run.gate(boundary="ORDER BY identifier position", prerequisites=ledger, counterevidence=counter)
+        self._pass_dedup()
+        result = self.run.emit(self._finding(), "hackerone")
+        self.assertTrue(result.ok, result.blocked_by)
+        self.assertIn(result.details["verdict"], ("READY TO SUBMIT", "NEEDS FIXES"))
+        self.assertEqual(len(list(self.run.path("report").glob("*.md"))), 1)
+
+    def test_missing_prerequisite_ledger_warns_but_does_not_block(self) -> None:
+        self._authorise_gather_record(with_prereq=False)
+        self.run.gate(boundary="ORDER BY identifier position")
+        self._pass_dedup()
+        result = self.run.emit(self._finding(), "hackerone")
+        self.assertTrue(result.ok, result.blocked_by)
+        self.assertTrue(
+            any("reachability is unestablished" in w for w in result.details["warnings"]),
+            result.details["warnings"],
+        )
+
+    def test_ungated_render_remains_available_explicitly(self) -> None:
+        """The escape hatch is calling render directly, not a bypass flag."""
+        import report as R
+
+        text = R.render(self._finding(), "hackerone")
+        self.assertIn("ORDER BY identifier position", text)
+
+    def test_provenance_records_the_file_name_not_an_absolute_path(self) -> None:
+        """The chain stores only a digest, so verify the payload by recomputing it.
+
+        Asserting the filename appears in the JSONL would be wrong: the chain
+        records a sha256 of the payload, not the payload. The property worth
+        testing is *which* payload was digested — name-only, or an absolute path
+        that would embed the authoring machine's layout.
+        """
+        import evidence as E
+
+        ledger, counter = self._authorise_gather_record(with_prereq=True)
+        self.run.gate(boundary="ORDER BY identifier position", prerequisites=ledger, counterevidence=counter)
+        self._pass_dedup()
+        result = self.run.emit(self._finding(), "hackerone")
+        self.assertTrue(result.ok, result.blocked_by)
+
+        recorded = [r for r in self.run.chain.records if r.action == "report"]
+        self.assertEqual(len(recorded), 1)
+
+        name = Path(result.details["path"]).name
+        verdict = result.details["verdict"]
+        name_only = E.ProvenanceChain._digest(
+            {"platform": "hackerone", "verdict": verdict, "path": name}
+        )
+        absolute = E.ProvenanceChain._digest(
+            {"platform": "hackerone", "verdict": verdict, "path": result.details["path"]}
+        )
+        self.assertNotEqual(name_only, absolute, "fixture check: the two payloads must differ")
+        self.assertEqual(recorded[0].digest, name_only)
+        self.assertNotIn("C:\\", self.run.chain.to_jsonl())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

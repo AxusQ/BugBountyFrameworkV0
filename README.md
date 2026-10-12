@@ -216,6 +216,11 @@ These are the load-bearing rules. Each is covered by tests.
 22. **A proven finding must argue against itself.** The strongest benign
     explanation, the control that ruled it out, and one fact that would change
     the severity are all required; placeholders block the claim.
+23. **Report emission is chained to the gates before it.** `emit()` refuses
+    unless at least one observation cleared the evidence bar, any prerequisite
+    ledger that was evaluated is `PROVEN`, and a duplication check was recorded
+    and passed. There is no bypass flag — an ungated render is
+    `report.render()`, called explicitly rather than concealed behind a switch.
 
 ## Source provenance and licensing
 

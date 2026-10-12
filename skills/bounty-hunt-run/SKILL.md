@@ -41,7 +41,7 @@ the technique. This skill is the pipeline around it.
 | `probe` | judges paired test/control observations | `observations.jsonl` | requires repeats and a control |
 | `gate` | applies the evidence bar per observation | `gate.json` | **a finding cannot advance without a named boundary** |
 | `deduplicate` | checks key, prior disclosures, known issues | `dedup.json` | requires a recorded search |
-| `report` | renders the platform report and self-triages it | `reports/` | **`DO NOT SUBMIT` blocks emission** |
+| `report` | renders the platform report and self-triages it | `reports/` | **refuses unless a gate passed, prerequisites are `PROVEN`, and a duplication check was recorded; `DO NOT SUBMIT` also blocks** |
 
 ## Procedure
 

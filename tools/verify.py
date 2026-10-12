@@ -78,8 +78,8 @@ def check_modules() -> list[Check]:
     """Every tool must import cleanly, and the package must expose its API."""
     expected = [
         "skillreg", "build_index", "validate_skills", "detect_collisions", "select_skills",
-        "collectors", "evidence", "leads", "gates", "cvss", "report", "pipeline",
-        "audit_content", "install_dsh",
+        "collectors", "evidence", "leads", "prerequisites", "gates", "cvss", "report",
+        "pipeline", "audit_content", "install_dsh", "verify",
     ]
     if str(TOOLS) not in sys.path:
         sys.path.insert(0, str(TOOLS))

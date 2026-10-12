@@ -51,14 +51,23 @@ ACTIVATION_CUES = (
     "trigger",
 )
 
-#: Always a defect, wherever they appear.
+#: Always a defect, wherever they appear. ``YOUR_*`` is the placeholder
+#: convention the source material uses, so a bare one means a skill was shipped
+#: without being adapted — it is a real defect even inside a code fence.
 PLACEHOLDER_ALWAYS = (
+    re.compile(r"\bYOUR_[A-Z_]+\b"),
+    re.compile(r"\bLorem ipsum\b", re.IGNORECASE),
+)
+
+#: Marker tokens that are defects in *prose* but legitimate as a *mention* when
+#: backticked or fenced — a skill documenting "placeholders such as `TBD` do not
+#: pass" is describing the rule, not violating it. Checked outside code spans
+#: only.
+PLACEHOLDER_TOKEN = (
     re.compile(r"\bTODO\b"),
     re.compile(r"\bTBD\b"),
     re.compile(r"\bFIXME\b"),
     re.compile(r"\bXXX\b"),
-    re.compile(r"\bYOUR_[A-Z_]+\b"),
-    re.compile(r"\bLorem ipsum\b", re.IGNORECASE),
 )
 
 #: Angle-bracket meta-variables. These are legitimate inside code, where they
@@ -156,22 +165,36 @@ def lint_skill(skill: sr.Skill) -> list[sr.Diagnostic]:
             f"body is {len(body.strip())} chars (<{BODY_MIN}); it may describe a topic "
             "rather than a procedure an agent can execute end to end",
         )
+    spans = _code_spans(body)
+
     for pattern in PLACEHOLDER_ALWAYS:
         match = pattern.search(body)
         if match:
             add("error", "body-placeholder", f"unfilled placeholder {match.group(0)!r} in body")
             break
     else:
-        spans = _code_spans(body)
-        for match in PLACEHOLDER_META.finditer(body):
-            inner = match.group(1)
-            if any(marker in inner for marker in UNFILLED_MARKERS) or not _in_spans(match.start(), spans):
+        for pattern in PLACEHOLDER_TOKEN:
+            match = next(
+                (m for m in pattern.finditer(body) if not _in_spans(m.start(), spans)),
+                None,
+            )
+            if match:
                 add(
                     "error",
                     "body-placeholder",
-                    f"unfilled placeholder {match.group(0)!r} in body",
+                    f"unfilled placeholder {match.group(0)!r} in body (outside a code span)",
                 )
                 break
+        else:
+            for match in PLACEHOLDER_META.finditer(body):
+                inner = match.group(1)
+                if any(marker in inner for marker in UNFILLED_MARKERS) or not _in_spans(match.start(), spans):
+                    add(
+                        "error",
+                        "body-placeholder",
+                        f"unfilled placeholder {match.group(0)!r} in body",
+                    )
+                    break
 
     if not skill.license and skill.root_label.startswith(("framework", "arg", "custom")):
         add(

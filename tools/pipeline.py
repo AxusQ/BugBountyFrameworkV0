@@ -288,8 +288,21 @@ class Run:
             details=observation.as_dict(),
         )
 
-    def gate(self, *, boundary: str | None = None, reproducible_from: str | None = None) -> PhaseResult:
-        """Apply the evidence bar to every recorded observation."""
+    def gate(
+        self,
+        *,
+        boundary: str | None = None,
+        reproducible_from: str | None = None,
+        prerequisites: Any = None,
+        counterevidence: Any = None,
+    ) -> PhaseResult:
+        """Apply the evidence bar to every recorded observation.
+
+        Supplying ``prerequisites`` and ``counterevidence`` raises the bar from
+        "is this a signal?" to "may I report this?": a demonstrated primitive is
+        not a finding until attacker reachability is established and the
+        strongest benign explanation has been ruled out.
+        """
         path = self.path("probe")
         if not path.is_file():
             return PhaseResult("gate", False, "no observations recorded",
@@ -297,7 +310,16 @@ class Run:
 
         observations = E.read_observations(path)
         gate = E.EvidenceGate()
-        results = [gate.check(obs, boundary=boundary, reproducible_from=reproducible_from) for obs in observations]
+        results = [
+            gate.check(
+                obs,
+                boundary=boundary,
+                reproducible_from=reproducible_from,
+                prerequisites=prerequisites,
+                counterevidence=counterevidence,
+            )
+            for obs in observations
+        ]
 
         overall = E.strongest(observations)
         payload = {
@@ -308,13 +330,22 @@ class Run:
             "blocked": sum(1 for r in results if not r.passed),
             "results": [r.as_dict() for r in results],
         }
+        if prerequisites is not None:
+            verdict, reasons = prerequisites.verdict()
+            payload["prerequisite_verdict"] = verdict.value
+            payload["prerequisites"] = prerequisites.as_list()
+            payload["prerequisite_reasons"] = reasons
+        if counterevidence is not None:
+            payload["counterevidence"] = counterevidence.as_dict()
+            payload["counterevidence_problems"] = counterevidence.problems()
+
         self._write_json("gate", payload)
         return PhaseResult(
             "gate",
             ok=payload["passed"] > 0,
             summary=f"{payload['passed']}/{payload['observations']} observation(s) cleared the evidence bar; overall {overall.value}",
             details=payload,
-            blocked_by=[r for result in results if not result.passed for r in result.reasons][:6],
+            blocked_by=[r for result in results if not result.passed for r in result.reasons][:8],
         )
 
     def deduplicate(

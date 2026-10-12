@@ -1287,5 +1287,230 @@ class ContentAuditTests(unittest.TestCase):
         self.assertEqual(hijack, [], f"own skills flagged: {[str(f) for f in hijack]}")
 
 
+class PrerequisiteTests(unittest.TestCase):
+    """Attacker reachability is a separate obligation from the demonstrated primitive."""
+
+    def _row(self, **kwargs):
+        import prerequisites as P
+
+        base = dict(
+            requirement="victim object identifier",
+            attacker_capability="authenticated low-privilege account",
+            acquisition_step="list other objects through the shared report index",
+        )
+        base.update(kwargs)
+        return P.Prerequisite(**base)
+
+    def test_empty_ledger_is_incomplete_not_proven(self) -> None:
+        import prerequisites as P
+
+        verdict, reasons = P.PrerequisiteLedger().verdict()
+        self.assertIs(verdict, P.PrereqVerdict.INCOMPLETE)
+        self.assertTrue(reasons)
+
+    def test_all_reachable_proves(self) -> None:
+        import prerequisites as P
+
+        ledger = P.PrerequisiteLedger([
+            self._row(status=P.PrereqStatus.REACHABLE, evidence_path="evidence/a.txt"),
+            self._row(requirement="target tenant id", status=P.PrereqStatus.REACHABLE,
+                      evidence_path="evidence/b.txt"),
+        ])
+        verdict, reasons = ledger.verdict()
+        self.assertIs(verdict, P.PrereqVerdict.PROVEN, reasons)
+
+    def test_reachable_without_evidence_is_incomplete(self) -> None:
+        import prerequisites as P
+
+        ledger = P.PrerequisiteLedger([self._row(status=P.PrereqStatus.REACHABLE)])
+        verdict, _ = ledger.verdict()
+        self.assertIs(verdict, P.PrereqVerdict.INCOMPLETE)
+
+    def test_undocumented_negative_is_not_disproof(self) -> None:
+        """The load-bearing rule: failing to obtain something is an open question."""
+        import prerequisites as P
+
+        ledger = P.PrerequisiteLedger([
+            self._row(status=P.PrereqStatus.NOT_REACHABLE, hunt_documented=False),
+        ])
+        verdict, reasons = ledger.verdict()
+        self.assertIs(verdict, P.PrereqVerdict.INCOMPLETE)
+        self.assertIs(ledger.rows[0].effective_status(), P.PrereqStatus.UNVERIFIED)
+        self.assertTrue(any("open" in r for r in reasons))
+
+    def test_documented_negative_disproves(self) -> None:
+        import prerequisites as P
+
+        ledger = P.PrerequisiteLedger([
+            self._row(status=P.PrereqStatus.NOT_REACHABLE, hunt_documented=True),
+        ])
+        verdict, _ = ledger.verdict()
+        self.assertIs(verdict, P.PrereqVerdict.DISPROVED)
+
+    def test_disproof_outranks_blockage(self) -> None:
+        """'Cannot be done' is stronger than 'I could not finish testing'."""
+        import prerequisites as P
+
+        ledger = P.PrerequisiteLedger([
+            self._row(requirement="a", status=P.PrereqStatus.BLOCKED),
+            self._row(requirement="b", status=P.PrereqStatus.NOT_REACHABLE, hunt_documented=True),
+        ])
+        verdict, _ = ledger.verdict()
+        self.assertIs(verdict, P.PrereqVerdict.DISPROVED)
+
+    def test_blocked_prevents_proof_but_is_not_disproof(self) -> None:
+        import prerequisites as P
+
+        ledger = P.PrerequisiteLedger([
+            self._row(requirement="a", status=P.PrereqStatus.REACHABLE, evidence_path="e"),
+            self._row(requirement="b", status=P.PrereqStatus.BLOCKED),
+        ])
+        verdict, reasons = ledger.verdict()
+        self.assertIs(verdict, P.PrereqVerdict.BLOCKED)
+        self.assertTrue(any("not disproof" in r for r in reasons))
+
+    def test_counts_use_effective_status(self) -> None:
+        import prerequisites as P
+
+        ledger = P.PrerequisiteLedger([
+            self._row(requirement="a", status=P.PrereqStatus.NOT_REACHABLE, hunt_documented=False),
+            self._row(requirement="b", status=P.PrereqStatus.REACHABLE, evidence_path="e"),
+        ])
+        counts = ledger.counts()
+        self.assertEqual(counts["UNVERIFIED"], 1)
+        self.assertEqual(counts["NOT_REACHABLE"], 0)
+
+
+class CounterEvidenceTests(unittest.TestCase):
+    def _good(self):
+        import prerequisites as P
+
+        return P.CounterEvidence(
+            benign_explanation="The index endpoint may legitimately scope results to the caller by design.",
+            control_checked="Repeated the request from a second account against its own object and compared.",
+            control_result="Second account saw only its own records, so scoping is not applied consistently.",
+            would_change_severity="If the index required an elevated role, this would drop to Low.",
+        )
+
+    def test_substantive_counterevidence_passes(self) -> None:
+        self.assertTrue(self._good().check().passed)
+
+    def test_missing_section_fails(self) -> None:
+        import prerequisites as P
+
+        result = P.CounterEvidence("", "", "", "").check()
+        self.assertFalse(result.passed)
+        joined = " ".join(result.reasons)
+        for field_name in ("benign_explanation", "control_checked", "control_result", "would_change_severity"):
+            with self.subTest(field=field_name):
+                self.assertIn(field_name, joined)
+
+    def test_placeholder_values_fail(self) -> None:
+        import prerequisites as P
+
+        for filler in ("N/A", "none", "TBD", "---", "..."):
+            with self.subTest(filler=filler):
+                ce = self._good()
+                ce.benign_explanation = filler
+                self.assertFalse(ce.check().passed)
+
+    def test_too_short_argument_fails(self) -> None:
+        import prerequisites as P
+
+        ce = self._good()
+        ce.control_checked = "checked it"
+        self.assertFalse(ce.check().passed)
+
+    def test_severity_fragility_is_required(self) -> None:
+        import prerequisites as P
+
+        ce = self._good()
+        ce.would_change_severity = ""
+        self.assertFalse(ce.check().passed)
+
+
+class FindingGateIntegrationTests(unittest.TestCase):
+    """The evidence gate must accept the finding-level gates structurally."""
+
+    def _signal(self):
+        import evidence as E
+
+        return E.Observation(
+            "o1", "app.example.com", "GET /api/v1/reports", "sort",
+            E.InputRole.STRUCTURE, E.OracleKind.DIFFERENTIAL,
+            payload="sort=(SELECT 1)", control="sort=created_at",
+            measurements=[1, 1, 1], control_measurements=[0, 0, 0],
+            verdict=E.Verdict.SIGNAL,
+        )
+
+    def test_signal_alone_passes_probe_level_gate(self) -> None:
+        import evidence as E
+
+        result = E.EvidenceGate().check(self._signal(), boundary="ORDER BY identifier position")
+        self.assertTrue(result.passed, result.reasons)
+
+    def test_unverified_prerequisites_block_the_finding(self) -> None:
+        import evidence as E
+        import prerequisites as P
+
+        ledger = P.PrerequisiteLedger([
+            P.Prerequisite("victim id", "low-priv account", "enumerate via the index"),
+        ])
+        result = E.EvidenceGate().check(
+            self._signal(), boundary="ORDER BY identifier position", prerequisites=ledger
+        )
+        self.assertFalse(result.passed)
+        self.assertTrue(any("prerequisites" in r for r in result.reasons))
+
+    def test_full_finding_clears_when_everything_is_established(self) -> None:
+        import evidence as E
+        import prerequisites as P
+
+        ledger = P.PrerequisiteLedger([
+            P.Prerequisite("victim id", "low-priv account", "enumerate via the index",
+                           status=P.PrereqStatus.REACHABLE, evidence_path="evidence/id.txt"),
+        ])
+        counter = P.CounterEvidence(
+            benign_explanation="Scoping may be applied by design at the index layer.",
+            control_checked="Compared against a second account's own object.",
+            control_result="Second account saw only its own rows.",
+            would_change_severity="An elevated-role requirement would reduce this to Low.",
+        )
+        result = E.EvidenceGate().check(
+            self._signal(), boundary="ORDER BY identifier position",
+            prerequisites=ledger, counterevidence=counter,
+        )
+        self.assertTrue(result.passed, result.reasons)
+
+    def test_placeholder_counterevidence_blocks_the_finding(self) -> None:
+        import evidence as E
+        import prerequisites as P
+
+        counter = P.CounterEvidence("N/A", "none", "none", "")
+        result = E.EvidenceGate().check(
+            self._signal(), boundary="ORDER BY identifier position", counterevidence=counter
+        )
+        self.assertFalse(result.passed)
+        self.assertTrue(any("counterevidence" in r for r in result.reasons))
+
+    def test_pipeline_records_prerequisite_verdict(self) -> None:
+        import pipeline as P
+        import prerequisites as Q
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run = P.Run(Path(tmp) / "runs", "app.example.com")
+            run.authorise(G_Authorization())
+            run.gather(js_texts=[("b.js", "fetch('/api/v1/reports?sort=x')")])
+            run.record(ev_observation())
+
+            ledger = Q.PrerequisiteLedger([
+                Q.Prerequisite("victim id", "low-priv account", "enumerate via the index"),
+            ])
+            result = run.gate(boundary="ORDER BY identifier position", prerequisites=ledger)
+            self.assertFalse(result.ok)
+            self.assertEqual(result.details["prerequisite_verdict"], "INCOMPLETE")
+            self.assertEqual(result.details["prerequisites"][0]["effective_status"], "UNVERIFIED")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

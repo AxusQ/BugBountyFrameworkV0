@@ -95,10 +95,50 @@ Honest list of what exists as design intent only:
 5. **Collector coverage.** Only JavaScript/JSON artifacts. OpenAPI documents,
    HAR files, and HTTP response corpora would each be straightforward additions
    using the same `EvidenceItem` shape.
-6. **The mdpsec phase pipeline.** Its extraction was still in progress when the
-   rest of the framework was assembled, so the phase model here derives from the
-   SQLi methodology plus the other two sources. Reconciling the two — particularly
-   its independent-escalation and self-duplicate-check phases — is outstanding.
+6. **Independent escalation pass.** The design reference runs a separate
+   read-only verification pass on a finding after it is verified and before it is
+   gated for submission, with hard containment (only its own output root is
+   writable, the report is hash-pinned so it cannot be edited to fit a theory, and
+   sibling branches must not be read so the result stays independent). The
+   framework's gates are single-pass; adding a second independent pass with those
+   constraints is the next structural improvement.
+
+## The mdpsec integration: reachability and counterevidence
+
+The `bug-bounty-hunting-prompts` pack is MIT-licensed, so unlike `bountyforge`
+(no grant) and `claude-kit` (GPL) its design could be adopted directly. Two of
+its mechanisms are now executable in `tools/prerequisites.py`.
+
+**The prerequisite ledger.** Its central insight is that a demonstrated primitive
+is not a finding. "The endpoint returns another user's record when you supply
+their UUID" is a report that the UUID was known, not a vulnerability report — the
+attacker's ability to obtain that UUID has to be established by a *separate*
+argument. The ledger forces one row per required value, state, role, or action,
+each naming the attacker's starting capability and a concrete in-scope
+acquisition step, and a finding is provable only when every row is `REACHABLE`.
+
+**The rule that makes it honest.** The pack states it plainly: *lack of time or
+one negative request is not disproof*. Implemented as a status downgrade — a
+`NOT_REACHABLE` row without a documented acquisition hunt is reported as
+`UNVERIFIED`, so it leaves the finding open rather than closing it. This is the
+same asymmetry as `UNKNOWN`-beats-`REFUTED` in the evidence model, applied one
+level up, and it is the reason the ledger is worth having rather than being a
+checklist. Precedence is also encoded: a documented disproof outranks a blockage,
+because "this cannot be done" is a stronger statement than "I could not finish
+testing it".
+
+**The counterevidence gate.** Before a finding may be called proven, the author
+must write the strongest benign or intended explanation, the control that ruled
+it out, and one fact that would change the severity. The last field is the one
+that does the work: if you cannot name a single fact that would move the rating,
+you have not thought about the boundary conditions. Placeholders (`N/A`, `TBD`,
+`none`) and short filler are rejected, so the section cannot be satisfied
+cosmetically.
+
+Both gates are wired into `EvidenceGate.check()` structurally — it accepts any
+object exposing `check() -> GateResult` — so the evidence module gains no import
+cycle, and the probe-level question ("is this a signal?") stays distinct from the
+finding-level question ("may I report this?").
 
 ## Testing stance
 

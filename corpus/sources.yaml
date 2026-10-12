@@ -32,6 +32,24 @@
 
 version: 1
 sources:
+  # The framework's own skills. Ranked highest so that when a copy is also
+  # installed into the user root, the working tree wins and the index reflects
+  # what this repository actually contains.
+  - label: framework
+    rank: 50
+    path: ../skills
+    license: none granted (private repository)
+    origin: this repository
+    role: the framework's own portable skills
+    reusable: reference
+    notes: >
+      Five skills: bounty-hunt-run (pipeline driver), bounty-recon-collect
+      (deterministic gathering), sqli-surface-triage (ranking and role
+      classification), sqli-oracle-probe (paired experiments), and
+      sqli-boundary-report (boundary naming, scoring, platform emission). Each
+      carries an explicit negative trigger pointing at `sqli-bug-bounty` for the
+      SQLi method itself, so the two do not compete for the same request.
+
   - label: corpus
     rank: 100
     path: ../references/Anthropic-Cybersecurity-Skills/skills

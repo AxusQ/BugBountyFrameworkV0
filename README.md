@@ -72,6 +72,7 @@ reproducible rather than a fork that rots.
 | `collectors.py` | deterministic JS/API surface extraction, snapshot diffing, freshness ranking |
 | `evidence.py` | oracle classification, control baselines, redaction, hash-chained provenance |
 | `leads.py` | lead lifecycle with a kill guard that refuses one-sided refutations |
+| `prerequisites.py` | attacker-reachability ledger and the counterevidence gate |
 | `gates.py` | scope gate, asset boundary, duplicate gate, report self-triage |
 | `cvss.py` | CVSS v3.1 base score calculator (verified against reference vectors) |
 | `report.py` | HackerOne / Bugcrowd / Intigriti / Immunefi / generic emitters |
@@ -180,6 +181,16 @@ These are the load-bearing rules. Each is covered by tests.
     copies data into the skill root, never code.
 19. **Only the hijack family gates ingestion.** Attack vocabulary is not
     evidence of an attack on a corpus whose purpose is attack.
+20. **A demonstrated primitive is not a finding.** Every value, role, state, or
+    action an attacker needs must be shown obtainable through an in-scope path
+    before the finding is provable.
+21. **A negative prerequisite is an open question until the hunt is documented.**
+    `NOT_REACHABLE` without a written acquisition hunt is downgraded to
+    `UNVERIFIED` — failing to obtain something is not evidence it cannot be
+    obtained. The same asymmetry as `UNKNOWN`-beats-`REFUTED`, one level up.
+22. **A proven finding must argue against itself.** The strongest benign
+    explanation, the control that ruled it out, and one fact that would change
+    the severity are all required; placeholders block the claim.
 
 ## Source provenance and licensing
 

@@ -46,7 +46,42 @@ developer could locate it in the source from your sentence alone:
 - for a second-order flow, both hops: where the value was stored, and where it
   was later re-interpreted as SQL.
 
-### 2. Score with metrics, not adjectives
+### 2. Prove attacker reachability before claiming anything
+
+A demonstrated primitive is not a finding. "The endpoint returns another user's
+record when you supply their ID" is a report that the ID was known, not a report
+of a vulnerability. Build a prerequisite ledger with **one row per value, role,
+state, or action an attacker needs**, and for each record:
+
+- what the attacker must have;
+- what they start with (their capability, not yours);
+- the **concrete, in-scope step** that obtains it through the claimed attacker
+  path — "attacker guesses a UUID" is not an acquisition step;
+- the status, and an evidence file for anything marked `REACHABLE`.
+
+The finding is provable only when every row is `REACHABLE`. One row that cannot
+be satisfied through the claimed path disproves it, which is a legitimate and
+valuable outcome.
+
+**The rule that keeps this honest: a negative is not a disproof.** A row marked
+`NOT_REACHABLE` without a written-up acquisition hunt is treated as `UNVERIFIED`
+and leaves the finding *open*, because failing to obtain something is not
+evidence that it cannot be obtained. Lack of time, or one negative request, is
+never disproof.
+
+### 3. Write the counterevidence
+
+Before calling a finding proven, argue against yourself once, in writing:
+
+- the **strongest benign or intended explanation** for what you observed;
+- the **control** that ruled it out;
+- one fact that **would change the severity**.
+
+That last line is the one that does the work. If you cannot name a single fact
+that would move the rating, you have not thought about the boundary conditions.
+Placeholders are rejected — `N/A`, `TBD` and `none` do not pass.
+
+### 4. Score with metrics, not adjectives
 
 ```bash
 python framework/tools/cvss.py "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N"
@@ -65,7 +100,7 @@ Set `PR` to the privilege level you actually demonstrated, not the one that
 would make the bug look worse. Set `UI` to `R` only if a victim action is
 genuinely part of the chain, and say what the action is.
 
-### 3. Emit for the platform
+### 5. Emit for the platform
 
 ```bash
 python framework/tools/report.py finding.json --platform hackerone --out report.md
@@ -83,7 +118,7 @@ Four platform shapes are supported, each with its own required fields:
 `--check` validates without rendering, which is the fastest way to find a
 missing prerequisite before you write prose.
 
-### 4. Self-triage the draft before submitting
+### 6. Self-triage the draft before submitting
 
 ```bash
 python framework/tools/gates.py  # via pipeline: python framework/tools/pipeline.py gate <target>
@@ -105,7 +140,7 @@ Report only what the proof demonstrated. If the impact you believe in exceeds
 what you showed, say so explicitly as unverified rather than asserting it as
 demonstrated.
 
-### 5. Check duplication before you submit
+### 7. Check duplication before you submit
 
 Confirm the asset is in scope, the class is not excluded, your severity claim
 does not exceed the program's cap for that class, and the surface has not

@@ -440,6 +440,8 @@ class EvidenceGate:
         *,
         boundary: str | None = None,
         reproducible_from: str | None = None,
+        prerequisites: Any = None,
+        counterevidence: Any = None,
     ) -> GateResult:
         """Evaluate one observation against the bar.
 
@@ -447,6 +449,14 @@ class EvidenceGate:
         crossed (e.g. "ORDER BY identifier position in the report-sort
         parameter"). Naming it is what separates a modern SQLi report from a
         scanner dump.
+
+        ``prerequisites`` and ``counterevidence`` are optional finding-level
+        gates from :mod:`prerequisites`. They are accepted structurally (any
+        object exposing ``check() -> GateResult``) rather than imported, so this
+        module stays free of a circular dependency. Supply them whenever the
+        question is "may I report this?" rather than "is this a signal?" — a
+        signal is not a finding until attacker reachability is established and
+        the strongest benign explanation has been ruled out.
         """
         result = GateResult(name="evidence", passed=True)
 
@@ -484,6 +494,19 @@ class EvidenceGate:
 
         if not reproducible_from:
             result.warnings.append("no reproduction prerequisite recorded (account level, feature flags, prior state)")
+
+        for name, gate in (("prerequisites", prerequisites), ("counterevidence", counterevidence)):
+            if gate is None:
+                continue
+            if not hasattr(gate, "check"):
+                result.warnings.append(f"{name} object has no check() and was ignored")
+                continue
+            sub = gate.check()
+            if not sub.passed:
+                result.passed = False
+                result.reasons.extend(f"{name}: {reason}" for reason in sub.reasons)
+            else:
+                result.warnings.extend(f"{name}: {warning}" for warning in sub.warnings)
 
         return result
 

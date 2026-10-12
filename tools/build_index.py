@@ -56,6 +56,42 @@ def load_sources(config_path: Path) -> list[dict[str, Any]]:
     return out
 
 
+def _relativise_diagnostic(entry: dict[str, Any]) -> dict[str, Any]:
+    """Strip absolute paths from a diagnostic before it is persisted."""
+    out = dict(entry)
+    if out.get("path"):
+        out["path"] = _relative(str(out["path"]))
+    return out
+
+
+def _relative(path_str: str) -> str:
+    """Express a path relative to the framework root when it lies inside it.
+
+    index.json is committed, so absolute paths would embed this machine's
+    directory layout, go stale the moment the repository is cloned elsewhere,
+    and leak the local username. Relative POSIX-style paths are stable across
+    hosts; a path outside the framework root (such as a user skill root) is left
+    absolute because there is no meaningful relative form.
+    """
+    try:
+        candidate = Path(path_str)
+        resolved = candidate.resolve()
+    except (OSError, ValueError):
+        return path_str
+
+    for base in (FRAMEWORK_ROOT, FRAMEWORK_ROOT.parent):
+        try:
+            return resolved.relative_to(base.resolve()).as_posix()
+        except ValueError:
+            continue
+
+    # A home-relative path is still portable if it names no local username.
+    try:
+        return "~/" + resolved.relative_to(Path.home()).as_posix()
+    except ValueError:
+        return path_str
+
+
 def build(config_path: Path) -> tuple[sr.ScanResult, dict[str, sr.Skill], list[sr.Collision], list[dict[str, Any]]]:
     sources = load_sources(config_path)
     roots = [sr.SkillRoot(s["label"], s["path"], s["rank"]) for s in sources]
@@ -72,7 +108,7 @@ def build(config_path: Path) -> tuple[sr.ScanResult, dict[str, sr.Skill], list[s
             {
                 "label": s["label"],
                 "rank": s["rank"],
-                "path": str(s["path"]),
+                "path": _relative(str(s["path"])),
                 "exists": s["path"].exists(),
                 "license": s["license"],
                 "origin": s["origin"],
@@ -97,6 +133,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     result, catalog, collisions, per_source = build(args.config)
 
+    # Relativise every emitted skill path too, so the committed index carries no
+    # absolute local paths.
+    summaries: list[dict[str, Any]] = []
+    for name in sorted(catalog):
+        entry = catalog[name].summary()
+        entry["path"] = _relative(str(entry["path"]))
+        summaries.append(entry)
+
     payload = {
         "version": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -105,9 +149,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "total_candidates": len(result.skills),
         "sources": per_source,
         "collisions": [c.as_dict() for c in collisions],
-        "rejected": [d.as_dict() for d in result.errors],
-        "diagnostics": [d.as_dict() for d in result.diagnostics],
-        "skills": [catalog[n].summary() for n in sorted(catalog)],
+        "rejected": [_relativise_diagnostic(d.as_dict()) for d in result.errors],
+        "diagnostics": [_relativise_diagnostic(d.as_dict()) for d in result.diagnostics],
+        "skills": summaries,
     }
 
     args.out.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
